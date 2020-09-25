@@ -1,3 +1,6 @@
+main:
+	gcc main.c -o main -lX11
+
 test:
 	Xephyr -ac -screen 1280x1024 -br -reset -terminate 2> /dev/null :1 &
 	sleep 1

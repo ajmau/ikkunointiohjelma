@@ -15,6 +15,9 @@ Window root;
 XButtonEvent start;
 XWindowAttributes attr;
 
+Window frame;
+Window child; 
+
 void keypress();
 void buttonpress();
 void maprequest();
@@ -44,6 +47,15 @@ void buttonpress(XEvent ev)
 	XRaiseWindow(display, ev.xkey.subwindow);
 	XGetWindowAttributes(display, ev.xbutton.subwindow, &attr);
 	start = ev.xbutton;
+
+	Window root_return;
+	Window parent_return;
+	Window child_return;
+	int nchild_return;
+
+	XQueryTree(display, frame, &root_return, &parent_return, &child_return, &nchild_return);
+
+
 }
 
 void keypress(XEvent ev)
@@ -53,9 +65,6 @@ void keypress(XEvent ev)
 	// mod + d
 	if (ev.xkey.keycode == 40) {
 		setsid();
-	///	if (XInitThreads() != 0) {
-	///		printf("vooi vittu\n");
-	///	}
 
 		if (fork() == 0) {
 			printf("fork()\n");
@@ -112,10 +121,16 @@ void maprequest(XEvent ev)
 
 void run()
 {
-		XSync(display, False);
 	for (;;) {
 		XEvent ev;
 		XNextEvent(display, &ev);
+
+		if (ev.xany.window == child) {
+			if (ev.type == Expose)
+				printf("CHILDWIN EXPOSE\n");
+			else if (ev.type == ButtonPress)
+				printf("CHILDWIN BUTTONPRESS\n");
+		}	
 
 		if (handler[ev.type])
 			handler[ev.type](&ev);
@@ -160,22 +175,21 @@ int main()
 
 	start.subwindow = None;
 
-	Window frame = XCreateSimpleWindow(display, root, 200, 200, 500, 300, 2, 0xFFFFFF, 0xABCDEF);
+	frame = XCreateSimpleWindow(display, root, 200, 200, 500, 300, 2, 0xFFFFFF, 0xABCDEF);
 
 	XSelectInput(
         display,
         frame,
-        SubstructureRedirectMask | SubstructureNotifyMask);
-
+        ExposureMask | KeyPressMask);
 	XMapWindow(display, frame);
 
 
-	Window child = XCreateSimpleWindow(display, frame, 20, 20, 50, 30, 2, 0xFFFFFF, 0x32CD32);
-	XSelectInput(
-        display,
-        child,
-        SubstructureRedirectMask | SubstructureNotifyMask);
+	child = XCreateSimpleWindow(display, frame, 20, 20, 50, 30, 2, 0xFFFFFF, 0x32CD32);
+	XSelectInput(display, child,
+        ExposureMask | KeyPressMask | ButtonPressMask | ButtonReleaseMask);
 	XMapWindow(display, child);
+
+	XSync(display, false);
 
 	run();
 

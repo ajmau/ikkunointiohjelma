@@ -26,6 +26,7 @@ unsigned int wins=0;
 
 unsigned int childs[10];
 unsigned int parents[10];
+unsigned int buttons[10];
 
 Window frame;
 Window child; 
@@ -60,48 +61,96 @@ void onwmdetected() { wm_detected = true; }
 
 void onerror() {}
 
+void print_lists()
+{
+	int i=0;
+	for (i=0; i < 10; i++) 
+		printf("parents[%d] = %d\n", i, parents[i]);
+	for (i=0; i < 10; i++) 
+		printf("childs[%d] = %d\n", i, childs[i]);
+	for (i=0; i < 10; i++) 
+		printf("buttons[%d] = %d\n", i, buttons[i]);
+}
+
 void destroynotify(XEvent ev)
 {
-	printf("TUHOATUHOATHUOATUOHA\n");
+	printf("destroynotify()\n");
 
-	printf("ev.xkey.subwindow=%d\n", ev.xkey.subwindow);
-	XDestroyWindow(display, ev.xkey.subwindow);
+	Window parent_ret;
+	Window *child_ret;
+	Window root_ret;
+	int n;
+
+	//print_lists();
+	printf("window = %d\n", ev.xkey.window);
+	int i;
+	for (i=0; i < 10; i++) {
+		if (ev.xkey.window == childs[i]) {
+			XDestroyWindow(display, parents[i]);
+			XDestroyWindow(display, childs[i]);
+		}
+	}
+	XDestroyWindow(display, ev.xkey.window);
+	XDestroyWindow(display, ev.xbutton.window);
+	XDestroyWindow(display, ev.xbutton.subwindow);
 }
 
 void destroywindow(Window w)
 {
 
-	 Window root_return;
+	Window root_return;
         Window parent_return;
         Window* children_return;
         unsigned int nchildren_return;
 
-        if (XQueryTree(display,
-                       root,
-                       &root_return,
-                       &parent_return,
-                       &children_return,
-                       &nchildren_return) != 0)
-        { 
-		printf("tuhotaan\n");
-		printf("parent = %d\n", parent_return);
-		printf("w = %d\n", w);
-		XDestroyWindow(display, w);
-	} else { 
-		printf("eipä tuhota\n");
+	Window local_parent;
+	int a;
+	for (a=0; a < 10; a++) {
+		//printf("frame = %d\nparents[%d] = %d\n", frame, a, parents[a]);
+		if (frame == parents[a]) {
+			local_parent = parents[a];
+			XDestroyWindow(display, local_parent);
+			break;
+		}
 	}
+	
 }
 
-void unmapnotify(XEvent ev)
+void unmapnotify(XUnmapEvent ev)
 {
 	printf("unmäppäääää\n");
+
+	int i;
+
+	for (i=0; i<10; i++) {
+		if (ev.window == childs[i]) {
+			printf("FOUND RIGHT WINDOW!!!!!!!!!!!!!\n");
+			XUnmapWindow(display, parents[i]);
+			XDestroyWindow(display, parents[i]);
+		}
+	}
 }
 
 void buttonpress(XEvent ev)
 {
-	printf("buttonpress() ev.xkey.subwindow = %d\n", ev.xkey.subwindow);
+	//printf("buttonpress() ev.xkey.subwindow = %d\n", ev.xkey.subwindow);
+	printf("buttonpress()\n");
+
+	int i;
+	for (i = 0; i < 10; i++) {
+		if (ev.xany.window == buttons[i]) {
+			printf("close\n");
+			printf("%d\n", ev.xany.window);
+			if (ev.type == ButtonPress) {
+				//destroywindow(parents[i]);
+				XDestroyWindow(display, parents[i]);
+
+			}
+		}
+	}
 
 	frame = ev.xkey.subwindow;
+	//printf("frame on %d\n", frame);
 	XRaiseWindow(display, ev.xkey.subwindow);
 	XGetWindowAttributes(display, ev.xbutton.subwindow, &attr);
 	start = ev.xbutton;
@@ -110,6 +159,23 @@ void buttonpress(XEvent ev)
 void keypress(XEvent ev)
 {
 	// mod + d
+
+	if (ev.xkey.keycode == XStringToKeysym("F4")) {
+	int i;
+	for (i = 0; i < 10; i++) {
+		if (ev.xany.window == buttons[i]) {
+			printf("close\n");
+			printf("%d\n", ev.xany.window);
+			if (ev.type == ButtonPress) {
+				//destroywindow(parents[i]);
+				XDestroyWindow(display, parents[i]);
+
+			}
+		}
+	}
+
+	}
+
 	if (ev.xkey.keycode == 40) {
 		setsid();
 
@@ -142,7 +208,6 @@ void motionnotify(XEvent ev)
 			break;
 		}
 	}
-
 
 	XMoveResizeWindow(display, local_child,
 			0,
@@ -177,11 +242,9 @@ void configurerequest(XEvent ev)
 	XConfigureWindow(display, ev.xconfigurerequest.window, ev.xconfigurerequest.value_mask, &changes);
 }
 
-int mapreq_count = 0;
 int counter=0;
 void maprequest(XEvent ev)
 { 
-	mapreq_count++;
 	XWindowAttributes attrs;
 	XGetWindowAttributes(display, ev.xconfigurerequest.window, &attrs);
 
@@ -215,10 +278,14 @@ void maprequest(XEvent ev)
 	XMapWindow(display, ev.xconfigurerequest.window);
 	XSync(display, false);
 
+	XGrabKey(display, XKeysymToKeycode(display, XStringToKeysym("F4")), Mod1Mask,
+			DefaultRootWindow(display), True, GrabModeAsync, GrabModeAsync);
+
 	child=ev.xconfigurerequest.window;
 	parents[counter]=frame;
+	buttons[counter]=closebutton;
 	childs[counter++]=child;
-
+	printf("child = %d\n", child);
 }
 
 
@@ -227,16 +294,6 @@ void run()
 	for (;;) {
 		XEvent ev;
 		XNextEvent(display, &ev);
-
-		if (ev.xany.window == closebutton) {
-			printf("cvlosee\n");
-			printf("%d\n", ev.xany.window);
-			if (ev.type == Expose)
-				printf("CHILDWIN EXPOSE\n");
-			else if (ev.type == ButtonPress) {
-				destroywindow(ev.xany.window);
-			}
-		}	
 
 		if (handler[ev.type])
 			handler[ev.type](&ev);
@@ -262,7 +319,7 @@ int main()
 
 	if (wm_detected) {
 		fprintf(stderr, "Another wm is running\n");
-		//		return 0;
+		//return 0;
 	}
 
 	XSetErrorHandler(&onerror);
@@ -279,22 +336,6 @@ int main()
 			ButtonPressMask|ButtonReleaseMask|PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None);
 
 	start.subwindow = None;
-
-/*	frame = XCreateSimpleWindow(display, root, 200, 200, 500, 300, 2, 0xFFFFFF, 0xABCDEF);
-
-	XSelectInput(
-        display,
-        frame,
-        ExposureMask | KeyPressMask);
-	XMapWindow(display, frame);
-
-
-	closebutton = XCreateSimpleWindow(display, frame, 0, 0, 30, 10, 2, 0xFFFFFF, 0x32CD32);
-	XSelectInput(display, closebutton,
-        ExposureMask | KeyPressMask | ButtonPressMask | ButtonReleaseMask);
-	XMapWindow(display, closebutton);
-*/
-	XSync(display, false);
 
 	run();
 
